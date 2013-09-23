@@ -4,13 +4,14 @@ package com.enricoros.androidspatialscope;
 
 import javax.microedition.khronos.opengles.GL10;
 
-import android.annotation.SuppressLint;
+import android.annotation.TargetApi;
 import android.app.Activity;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
 import android.opengl.GLSurfaceView;
+import android.os.Build;
 import android.os.Bundle;
 import android.view.Display;
 import android.view.Surface;
@@ -28,7 +29,7 @@ public class MainActivity extends Activity {
     private final float[] mRotationMatrix = new float[16];
     private int mDisplayRotation;
 
-    @SuppressLint("NewApi")
+    @TargetApi(Build.VERSION_CODES.JELLY_BEAN_MR2)
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -38,8 +39,11 @@ public class MainActivity extends Activity {
         // Get an instance of the SensorManager
         mSensorManager = (SensorManager)getSystemService(SENSOR_SERVICE);
 
-        mRotationVectorSensor = mSensorManager.getDefaultSensor(
-                Sensor.TYPE_ROTATION_VECTOR);
+        // if (Build.VERSION.SDK_INT >= 16)
+        // mRotationVectorSensor =
+        // mSensorManager.getDefaultSensor(Sensor.TYPE_GAME_ROTATION_VECTOR);
+        if (mRotationVectorSensor == null)
+            mRotationVectorSensor = mSensorManager.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR);
 
         // initialize the rotation matrix to identity
         mRotationMatrix[0] = 1;
@@ -52,14 +56,14 @@ public class MainActivity extends Activity {
         mGLSurfaceView.setRenderer(mRenderer);
         setContentView(mGLSurfaceView);
 
-        Display getOrient = getWindowManager().getDefaultDisplay();
-        mDisplayRotation = getOrient.getRotation();
+        Display defaultDisplay = getWindowManager().getDefaultDisplay();
+        mDisplayRotation = defaultDisplay.getRotation();
     }
 
     @Override
     protected void onResume() {
         super.onResume();
-        mSensorManager.registerListener(mCentralSensorsReceiver, mRotationVectorSensor, SensorManager.SENSOR_DELAY_FASTEST);
+        mSensorManager.registerListener(mCentralSensorsReceiver, mRotationVectorSensor, SensorManager.SENSOR_DELAY_GAME);
         mGLSurfaceView.onResume();
     }
 
@@ -78,6 +82,7 @@ public class MainActivity extends Activity {
         public void onSensorChanged(SensorEvent event) {
 
             switch (event.sensor.getType()) {
+                case Sensor.TYPE_GAME_ROTATION_VECTOR:
                 case Sensor.TYPE_ROTATION_VECTOR:
                     // convert the rotation-vector to a 4x4 matrix. the matrix
                     // is interpreted by Open GL as the inverse of the

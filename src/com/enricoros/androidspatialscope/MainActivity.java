@@ -4,6 +4,7 @@ package com.enricoros.androidspatialscope;
 
 import javax.microedition.khronos.opengles.GL10;
 
+import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
@@ -11,6 +12,8 @@ import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
 import android.opengl.GLSurfaceView;
 import android.os.Bundle;
+import android.view.Display;
+import android.view.Surface;
 
 public class MainActivity extends Activity {
 
@@ -23,11 +26,12 @@ public class MainActivity extends Activity {
     private Sensor mRotationVectorSensor;
 
     private final float[] mRotationMatrix = new float[16];
+    private int mDisplayRotation;
 
+    @SuppressLint("NewApi")
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_main);
 
         //mSensorsManager = new SensorsManager(this);
 
@@ -48,6 +52,8 @@ public class MainActivity extends Activity {
         mGLSurfaceView.setRenderer(mRenderer);
         setContentView(mGLSurfaceView);
 
+        Display getOrient = getWindowManager().getDefaultDisplay();
+        mDisplayRotation = getOrient.getRotation();
     }
 
     @Override
@@ -66,15 +72,33 @@ public class MainActivity extends Activity {
 
 
     private final SensorEventListener mCentralSensorsReceiver = new SensorEventListener() {
+        private final float[] mTempMatrix = new float[16];
 
         @Override
         public void onSensorChanged(SensorEvent event) {
+
             switch (event.sensor.getType()) {
                 case Sensor.TYPE_ROTATION_VECTOR:
                     // convert the rotation-vector to a 4x4 matrix. the matrix
                     // is interpreted by Open GL as the inverse of the
                     // rotation-vector, which is what we want.
-                    SensorManager.getRotationMatrixFromVector(mRotationMatrix, event.values);
+                    switch (mDisplayRotation) {
+                        case Surface.ROTATION_0:
+                            SensorManager.getRotationMatrixFromVector(mRotationMatrix, event.values);
+                            break;
+                        case Surface.ROTATION_90:
+                            SensorManager.getRotationMatrixFromVector(mTempMatrix, event.values);
+                            SensorManager.remapCoordinateSystem(mTempMatrix, SensorManager.AXIS_Y, SensorManager.AXIS_MINUS_X, mRotationMatrix);
+                            break;
+                        case Surface.ROTATION_180:
+                            SensorManager.getRotationMatrixFromVector(mTempMatrix, event.values);
+                            SensorManager.remapCoordinateSystem(mTempMatrix, SensorManager.AXIS_MINUS_X, SensorManager.AXIS_MINUS_Y, mRotationMatrix);
+                            break;
+                        case Surface.ROTATION_270:
+                            SensorManager.getRotationMatrixFromVector(mTempMatrix, event.values);
+                            SensorManager.remapCoordinateSystem(mTempMatrix, SensorManager.AXIS_MINUS_Y, SensorManager.AXIS_X, mRotationMatrix);
+                            break;
+                    }
                     break;
             }
         }

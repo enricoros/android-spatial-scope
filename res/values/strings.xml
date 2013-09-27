@@ -2,6 +2,6 @@
 <resources>
 
     <string name="app_name">Spatial Scope</string>
-    <string name="intro_text">Touch to decompose rotation.</string>
+    <string name="intro_text">Touch to decompose Spin</string>
 
 </resources>

@@ -4,21 +4,36 @@ package com.enricoros.androidspatialscope;
 
 import javax.microedition.khronos.opengles.GL10;
 
-import android.annotation.TargetApi;
 import android.app.Activity;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
 import android.opengl.GLSurfaceView;
-import android.os.Build;
+import android.opengl.Matrix;
 import android.os.Bundle;
 import android.view.Display;
+import android.view.MotionEvent;
 import android.view.Surface;
+import android.view.View;
+import android.widget.RelativeLayout;
+import android.widget.TextView;
 
 public class MainActivity extends Activity {
 
-    //private SensorsManager mSensorsManager;
+    private static class RotationMatrix {
+        float[] M = new float[16];
+
+        public RotationMatrix() {
+            Matrix.setIdentityM(M, 0);
+        }
+
+        public RotationMatrix duplicate() {
+            RotationMatrix copy = new RotationMatrix();
+            copy.M = M.clone();
+            return copy;
+        }
+    };
 
     private SensorManager mSensorManager;
     private MyRenderer mRenderer;
@@ -26,10 +41,14 @@ public class MainActivity extends Activity {
 
     private Sensor mRotationVectorSensor;
 
-    private final float[] mRotationMatrix = new float[16];
     private int mDisplayRotation;
 
-    @TargetApi(Build.VERSION_CODES.JELLY_BEAN_MR2)
+    private RotationMatrix mLastRotation = new RotationMatrix();
+    private RotationMatrix mStartRotation = null;
+
+    private RotationMatrix mInteMatrix = new RotationMatrix();
+    private TextView mOverlayText;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -46,15 +65,36 @@ public class MainActivity extends Activity {
             mRotationVectorSensor = mSensorManager.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR);
 
         // initialize the rotation matrix to identity
-        mRotationMatrix[0] = 1;
-        mRotationMatrix[4] = 1;
-        mRotationMatrix[8] = 1;
-        mRotationMatrix[12] = 1;
 
         mRenderer = new MyRenderer();
         mGLSurfaceView = new GLSurfaceView(this);
         mGLSurfaceView.setRenderer(mRenderer);
-        setContentView(mGLSurfaceView);
+        mGLSurfaceView.setRenderMode(GLSurfaceView.RENDERMODE_CONTINUOUSLY);
+        mGLSurfaceView.setOnTouchListener(new View.OnTouchListener() {
+            @Override
+            public boolean onTouch(View v, MotionEvent event) {
+                switch (event.getAction()) {
+                    case MotionEvent.ACTION_DOWN:
+                        mStartRotation = mLastRotation.duplicate();
+                        break;
+
+                    case MotionEvent.ACTION_MOVE:
+                        break;
+
+                    case MotionEvent.ACTION_UP:
+                    case MotionEvent.ACTION_CANCEL:
+                        mStartRotation = null;
+                        break;
+                }
+                return true;
+            }
+        });
+
+        setContentView(R.layout.activity_main);
+        RelativeLayout mainLay = (RelativeLayout) findViewById(R.id.dasMain);
+        mOverlayText = (TextView) mainLay.findViewById(R.id.coordsView);
+        mainLay.addView(mGLSurfaceView);
+        mainLay.bringChildToFront(mOverlayText);
 
         Display defaultDisplay = getWindowManager().getDefaultDisplay();
         mDisplayRotation = defaultDisplay.getRotation();
@@ -76,11 +116,10 @@ public class MainActivity extends Activity {
 
 
     private final SensorEventListener mCentralSensorsReceiver = new SensorEventListener() {
-        private final float[] mTempMatrix = new float[16];
+        private final RotationMatrix mTempMatrix = new RotationMatrix();
 
         @Override
         public void onSensorChanged(SensorEvent event) {
-
             switch (event.sensor.getType()) {
                 case Sensor.TYPE_GAME_ROTATION_VECTOR:
                 case Sensor.TYPE_ROTATION_VECTOR:
@@ -89,19 +128,19 @@ public class MainActivity extends Activity {
                     // rotation-vector, which is what we want.
                     switch (mDisplayRotation) {
                         case Surface.ROTATION_0:
-                            SensorManager.getRotationMatrixFromVector(mRotationMatrix, event.values);
+                            SensorManager.getRotationMatrixFromVector(mLastRotation.M, event.values);
                             break;
                         case Surface.ROTATION_90:
-                            SensorManager.getRotationMatrixFromVector(mTempMatrix, event.values);
-                            SensorManager.remapCoordinateSystem(mTempMatrix, SensorManager.AXIS_Y, SensorManager.AXIS_MINUS_X, mRotationMatrix);
+                            SensorManager.getRotationMatrixFromVector(mTempMatrix.M, event.values);
+                            SensorManager.remapCoordinateSystem(mTempMatrix.M, SensorManager.AXIS_Y, SensorManager.AXIS_MINUS_X, mLastRotation.M);
                             break;
                         case Surface.ROTATION_180:
-                            SensorManager.getRotationMatrixFromVector(mTempMatrix, event.values);
-                            SensorManager.remapCoordinateSystem(mTempMatrix, SensorManager.AXIS_MINUS_X, SensorManager.AXIS_MINUS_Y, mRotationMatrix);
+                            SensorManager.getRotationMatrixFromVector(mTempMatrix.M, event.values);
+                            SensorManager.remapCoordinateSystem(mTempMatrix.M, SensorManager.AXIS_MINUS_X, SensorManager.AXIS_MINUS_Y, mLastRotation.M);
                             break;
                         case Surface.ROTATION_270:
-                            SensorManager.getRotationMatrixFromVector(mTempMatrix, event.values);
-                            SensorManager.remapCoordinateSystem(mTempMatrix, SensorManager.AXIS_MINUS_Y, SensorManager.AXIS_X, mRotationMatrix);
+                            SensorManager.getRotationMatrixFromVector(mTempMatrix.M, event.values);
+                            SensorManager.remapCoordinateSystem(mTempMatrix.M, SensorManager.AXIS_MINUS_Y, SensorManager.AXIS_X, mLastRotation.M);
                             break;
                     }
                     break;
@@ -128,9 +167,47 @@ public class MainActivity extends Activity {
             gl.glMatrixMode(GL10.GL_MODELVIEW);
             gl.glLoadIdentity();
             gl.glTranslatef(0, 0, -1f);
-            gl.glMultMatrixf(mRotationMatrix, 0);
 
-            mCube.drawGL10(gl);
+            gl.glPushMatrix();
+            gl.glMultMatrixf(mLastRotation.M, 0);
+            if (mStartRotation == null)
+                gl.glColor4f(1, 1, 1, 1);
+            else
+                gl.glColor4f(0, 0, 0, 1);
+            mCube.drawGL10(gl, true, true);
+            gl.glPopMatrix();
+
+            if (mStartRotation != null) {
+                gl.glPushMatrix();
+
+                float[] delta = null;
+                delta = new float[3];
+                SomeMath.decomposeEulerRotation(delta, mLastRotation.M, mStartRotation.M);
+                final String rString = "x: " + Math.round(delta[0] * 100) / 100.0f + ", y: " + Math.round(delta[1] * 100) / 100.0f + ", z: " + Math.round(delta[2] * 100) / 100.0f;
+                // Log.w("ROT", rString);
+                mOverlayText.post(new Runnable() {
+                    @Override
+                    public void run() {
+                        mOverlayText.setText(rString);
+                    }
+                });
+
+                gl.glMultMatrixf(mStartRotation.M, 0);
+                gl.glColor4f(1, 1, 1, 1);
+                mCube.drawGL10(gl, false, true);
+                gl.glPopMatrix();
+            }
+
+            gl.glPushMatrix();
+            gl.glMultMatrixf(mInteMatrix.M, 0);
+            if (mStartRotation != null) {
+
+                // Matrix.rot
+
+            }
+            gl.glColor4f(0, 0.5f, 0.5f, 0.2f);
+            // mCube.drawGL10(gl, false, true);
+            gl.glPopMatrix();
         }
 
         @Override

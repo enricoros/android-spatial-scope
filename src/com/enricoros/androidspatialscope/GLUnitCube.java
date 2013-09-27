@@ -65,20 +65,23 @@ public class GLUnitCube {
         mIndexBuffer2.position(0);
     }
 
-    public void drawGL10(GL10 gl) {
+    public void drawGL10(GL10 gl, boolean drawShaded, boolean drawLines) {
         // gl.glDisable(GL10.GL_CULL_FACE);
         // gl.glFrontFace(GL10.GL_CW);
         gl.glShadeModel(GL10.GL_SMOOTH);
 
         gl.glEnableClientState(GL10.GL_VERTEX_ARRAY);
-        gl.glEnableClientState(GL10.GL_COLOR_ARRAY);
-        gl.glEnableClientState(GL10.GL_COLOR_ARRAY);
-        gl.glVertexPointer(3, GL10.GL_FLOAT, 0, mVertexBuffer);
-        gl.glColorPointer(4, GL10.GL_FLOAT, 0, mColorBuffer);
-        gl.glDrawElements(GL10.GL_TRIANGLES, 36, GL10.GL_UNSIGNED_BYTE, mIndexBuffer);
 
-        gl.glDisableClientState(GL10.GL_COLOR_ARRAY);
-        gl.glColor4f(1, 1, 1, 1);
-        gl.glDrawElements(GL10.GL_LINES, 24, GL10.GL_UNSIGNED_BYTE, mIndexBuffer2);
+        if (drawShaded) {
+            gl.glEnableClientState(GL10.GL_COLOR_ARRAY);
+            gl.glVertexPointer(3, GL10.GL_FLOAT, 0, mVertexBuffer);
+            gl.glColorPointer(4, GL10.GL_FLOAT, 0, mColorBuffer);
+            gl.glDrawElements(GL10.GL_TRIANGLES, 36, GL10.GL_UNSIGNED_BYTE, mIndexBuffer);
+            gl.glDisableClientState(GL10.GL_COLOR_ARRAY);
+        }
+
+        if (drawLines) {
+            gl.glDrawElements(GL10.GL_LINES, 24, GL10.GL_UNSIGNED_BYTE, mIndexBuffer2);
+        }
     }
 }
